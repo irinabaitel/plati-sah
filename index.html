@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Situația plăților – Cerc de șah</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --c-bg: #F5A96E;
+    --c-surface: rgba(255,255,255,0.62);
+    --c-border: rgba(255,255,255,0.85);
+    --c-navy: #1a3a6b;
+    --c-navy-2: #2a5aab;
+    --c-text: #2a2a3e;
+    --c-muted: #4a4a6e;
+    --c-success: #27ae60;
+    --c-error: #c0392b;
+    --c-success-bg: rgba(39,174,96,.15);
+    --c-error-bg: rgba(192,57,43,.13);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--c-bg);
+    font-family: 'Nunito', system-ui, sans-serif;
+    color: var(--c-text);
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 40px 16px;
+  }
+  main { width: 100%; max-width: 480px; }
+  h1 { color: var(--c-navy); font-size: 1.55rem; margin: 0 0 4px; line-height: 1.2; }
+  .sub { color: var(--c-muted); margin: 0 0 22px; }
+  .card {
+    background: var(--c-surface); border: 1px solid var(--c-border);
+    border-radius: 16px; padding: 20px; backdrop-filter: blur(6px);
+    box-shadow: 0 6px 22px rgba(26,58,107,.12);
+  }
+  label { display: block; font-weight: 700; color: var(--c-navy); margin-bottom: 8px; }
+  .row { display: flex; gap: 8px; }
+  input {
+    flex: 1; min-width: 0; font: inherit; font-size: 1.05rem;
+    padding: 12px 14px; border-radius: 10px;
+    border: 2px solid rgba(26,58,107,.25); background: #fff; color: var(--c-text);
+  }
+  input:focus { outline: none; border-color: var(--c-navy-2); }
+  button {
+    font: inherit; font-weight: 800; font-size: 1rem;
+    padding: 12px 18px; border: 0; border-radius: 10px; cursor: pointer;
+    background: var(--c-navy); color: #fff;
+  }
+  button:hover { background: var(--c-navy-2); }
+  .hint { font-size: .88rem; color: var(--c-muted); margin: 8px 0 0; }
+
+  #rezultat { margin-top: 16px; }
+  #rezultat:empty { display: none; }
+  .nume { font-weight: 800; color: var(--c-navy); font-size: 1.15rem; margin: 0 0 12px; }
+  .total { display: flex; justify-content: space-between; align-items: baseline;
+           padding: 14px 16px; border-radius: 12px; background: #fff; margin-bottom: 10px; }
+  .total .eticheta { font-weight: 700; }
+  .total .suma { font-size: 1.8rem; font-weight: 800; color: var(--c-navy); }
+  .linie { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px; }
+  .linie .suma { font-weight: 700; white-space: nowrap; }
+  .restanta { background: var(--c-error-bg); border-left: 4px solid var(--c-error);
+              padding: 10px 12px; border-radius: 8px; margin: 8px 0; }
+  .restanta .suma { color: var(--c-error); }
+  .ok { background: var(--c-success-bg); border-left: 4px solid var(--c-success);
+        padding: 12px; border-radius: 8px; font-weight: 700; }
+  .eroare { background: var(--c-error-bg); border-left: 4px solid var(--c-error);
+            padding: 12px; border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: .92rem; }
+  th { text-align: left; color: var(--c-muted); font-weight: 600; padding: 6px 4px;
+       border-bottom: 1px solid rgba(26,58,107,.2); }
+  td { padding: 6px 4px; border-bottom: 1px solid rgba(26,58,107,.08); }
+  th:not(:first-child), td:not(:first-child) { text-align: right; }
+  footer { margin-top: 18px; font-size: .85rem; color: var(--c-muted); text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Situația plăților</h1>
+  <p class="sub">Cercul de șah, anul 2026–2027</p>
+
+  <div class="card">
+    <form id="cauta" autocomplete="off">
+      <label for="nume">Numele și prenumele copilului</label>
+      <div class="row">
+        <input id="nume" type="text" placeholder="ex. Popescu Andrei" autofocus>
+        <button type="submit">Caută</button>
+      </div>
+      <p class="hint">Scrieți numele de familie și prenumele, în orice ordine. Diacriticele nu contează.</p>
+    </form>
+    <div id="rezultat"></div>
+  </div>
+
+  <footer id="subsol"></footer>
+</main>
+
+<script src="plati_date.js"></script>
+<script>
+  const SARE = 'lab-sah-2627';   // aceeași ca în plati_export.py
+  const D = window.PLATI;
+
+  document.getElementById('subsol').textContent =
+    'Date actualizate la ' + D.actualizat + '. Tarif: ' + D.tarif + ' lei / ședință.';
+
+  function cuvinte(text) {
+    return text.normalize('NFD').replace(/[^\x00-\x7F]/g, '')
+      .toUpperCase().replace(/[^A-Z]/g, ' ').split(/\s+/).filter(Boolean);
+  }
+
+  async function amprenta(cuv) {
+    const buf = await crypto.subtle.digest('SHA-256',
+      new TextEncoder().encode(SARE + cuv.slice().sort().join(' ')));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 20);
+  }
+
+  const lei = n => n.toLocaleString('ro-RO') + ' lei';
+  const titlu = cuv => cuv.map(w => w[0] + w.slice(1).toLowerCase()).join(' ');
+  const ședințe = n => n === 1 ? '1 ședință' : n + ' ședințe';
+
+  function situatie(luni) {
+    // Plățile acoperă întâi lunile cele mai vechi.
+    const cur = D.lunaCurenta;
+    let achitat = 0, anterior = 0;
+    luni.forEach(([, dePlata, ach], i) => {
+      achitat += ach;
+      if (i < cur) anterior += dePlata;
+    });
+    const curent = luni[cur][1];
+    const restanta = Math.max(0, anterior - achitat);
+    const total = anterior + curent - achitat;
+    return { curent, restanta, total, achitat };
+  }
+
+  function afiseaza(cuv, idx) {
+    const luni = D.copii[idx];
+    const s = situatie(luni);
+    const cur = D.lunaCurenta;
+    const [prez] = luni[cur];
+    let h = '<p class="nume">' + titlu(cuv) + '</p>';
+
+    if (s.total > 0) {
+      h += '<div class="total"><span class="eticheta">Total de plată</span><span class="suma">' + lei(s.total) + '</span></div>';
+    } else if (s.total < 0) {
+      h += '<div class="ok">Nu aveți nimic de plată. Aveți un avans de ' + lei(-s.total) + '.</div>';
+    } else {
+      h += '<div class="ok">Nu aveți nimic de plată. Mulțumim!</div>';
+    }
+
+    h += '<div class="linie"><span>Luna ' + D.luni[cur] + ': ' + ședințe(prez) + ' × ' + D.tarif + ' lei</span>' +
+         '<span class="suma">' + lei(s.curent) + '</span></div>';
+    if (s.restanta > 0) {
+      h += '<div class="linie restanta"><span>Restanță din lunile anterioare</span>' +
+           '<span class="suma">' + lei(s.restanta) + '</span></div>';
+    }
+    if (s.achitat > 0) {
+      h += '<div class="linie"><span>Achitat până acum</span><span class="suma">' + lei(s.achitat) + '</span></div>';
+    }
+
+    const active = luni.map((l, i) => [i, ...l]).filter(([i, p, , a]) => i <= cur && (p || a));
+    if (active.length > 1 || s.achitat > 0) {
+      h += '<table><thead><tr><th>Luna</th><th>Ședințe</th><th>De plată</th><th>Achitat</th></tr></thead><tbody>' +
+        active.map(([i, p, d, a]) => '<tr><td>' + D.luni[i] + '</td><td>' + p + '</td><td>' + lei(d) + '</td><td>' + lei(a) + '</td></tr>').join('') +
+        '</tbody></table>';
+    }
+    return h;
+  }
+
+  document.getElementById('cauta').addEventListener('submit', async e => {
+    e.preventDefault();
+    const out = document.getElementById('rezultat');
+    const cuv = cuvinte(document.getElementById('nume').value);
+    if (cuv.length < 2) {
+      out.innerHTML = '<div class="eroare">Vă rugăm să scrieți atât numele de familie, cât și prenumele.</div>';
+      return;
+    }
+    const gasiti = D.index[await amprenta(cuv)] || [];
+    if (gasiti.length === 1) {
+      out.innerHTML = afiseaza(cuv, gasiti[0]);
+    } else if (gasiti.length > 1) {
+      out.innerHTML = '<div class="eroare">Există mai mulți copii cu acest nume. Vă rugăm să scrieți numele complet, cu toate prenumele.</div>';
+    } else {
+      out.innerHTML = '<div class="eroare">Nu am găsit acest nume. Verificați dacă ați scris numele și prenumele copilului așa cum l-ați dat la înscriere.</div>';
+    }
+  });
+</script>
+</body>
+</html>
