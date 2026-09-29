@@ -1,13 +1,15 @@
 """Exportă sumele din foaia „Evidență plăți" pentru pagina plati.html.
 
 Rulare:  python plati_export.py
-Citește __SAH 2627__pilot.xlsx din OneDrive (o copie, ca să meargă și cu Excel deschis)
+Citește cel mai recent __SAH 2627__pilot*.xlsx din OneDrive (pilot, pilot_v1, ...),
+dintr-o copie, ca să meargă și cu Excel deschis,
 și scrie plati_date.js. Numele copiilor NU apar în clar în fișier: fiecare copil e găsit
 după amprenta SHA-256 a numelui normalizat (fără diacritice, cuvintele în ordine alfabetică).
 """
-import hashlib, itertools, json, shutil, tempfile, unicodedata, datetime, os
+import glob, hashlib, itertools, json, shutil, tempfile, unicodedata, datetime, os
 
-SURSA = os.path.expanduser(r'~\OneDrive\__SAH_26-27__\__SAH 2627__pilot.xlsx')
+FOLDER = os.path.expanduser(r'~\OneDrive\__SAH_26-27__')
+TIPAR = '__SAH 2627__pilot*.xlsx'   # fișierele din „arhiva versiuni vechi” nu intră (subfolder)
 DEST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plati_date.js')
 SARE = 'lab-sah-2627'   # trebuie să fie identică cu cea din plati.html
 
@@ -40,6 +42,10 @@ def numar(v):
 
 def main():
     import openpyxl
+    fisiere = [f for f in glob.glob(os.path.join(FOLDER, TIPAR))
+               if not os.path.basename(f).startswith('~$')]   # ~$... = fișierul de blocare al Excel
+    SURSA = max(fisiere, key=os.path.getmtime)
+    print('Sursa:', os.path.basename(SURSA))
     copie = os.path.join(tempfile.gettempdir(), 'plati_export_copie.xlsx')
     try:
         shutil.copyfile(SURSA, copie)
