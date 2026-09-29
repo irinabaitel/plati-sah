@@ -168,10 +168,12 @@ def scrie_de_lipit(randuri, copii, prim, ultim):
         if not any(c[i][2] for c in copii):
             continue
         col = openpyxl_col(PRIMA_COL + 3 * i + 2)
-        valori = [(f'{pe_rand[r][i][2]:g}' if r in pe_rand and pe_rand[r][i][2] else '')
+        # 0 (nu gol) la cine n-a plătit: Excel ignoră rândurile goale de la final la lipire,
+        # iar așa se suprascrie mereu toată coloana, până la ultimul copil
+        valori = [(f'{pe_rand[r][i][2]:g}' if r in pe_rand else '')
                   for r in range(prim, ultim + 1)]
         cale = os.path.join(INCASARI, f'achitat_de_lipit_{luna}.txt')
-        with open(cale, 'w', encoding='utf-8') as f:
+        with open(cale, 'w', encoding='utf-8', newline='') as f:
             f.write('\r\n'.join(valori))
         print(f'De lipit: {luna} -> coloana {col}, începând cu {col}{prim} ({cale})')
 
