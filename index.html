@@ -75,6 +75,13 @@
        border-bottom: 1px solid rgba(26,58,107,.2); }
   td { padding: 6px 4px; border-bottom: 1px solid rgba(26,58,107,.08); }
   th:not(:first-child), td:not(:first-child) { text-align: right; }
+  .cont { margin-top: 16px; }
+  .cont h2 { color: var(--c-navy); font-size: 1.1rem; margin: 0 0 10px; }
+  .cont .camp { font-size: .85rem; color: var(--c-muted); margin-top: 10px; }
+  .cont .val { font-weight: 700; word-break: break-word; }
+  .iban { display: flex; gap: 8px; align-items: center; }
+  .iban .val { flex: 1; font-family: ui-monospace, Consolas, monospace; font-size: 1rem; letter-spacing: .03em; }
+  .iban button { padding: 8px 12px; font-size: .9rem; }
   footer { margin-top: 18px; font-size: .85rem; color: var(--c-muted); text-align: center; }
 </style>
 </head>
@@ -95,6 +102,18 @@
     <div id="rezultat"></div>
   </div>
 
+  <div class="card cont" id="cont" hidden>
+    <h2>Unde plătiți</h2>
+    <div class="camp">Titular</div>
+    <div class="val" id="c-titular"></div>
+    <div class="camp">IBAN</div>
+    <div class="iban"><span class="val" id="c-iban"></span><button type="button" id="copiaza">Copiază</button></div>
+    <div class="camp">Banca</div>
+    <div class="val" id="c-banca"></div>
+    <div class="camp">La detaliile plății scrieți</div>
+    <div class="val" id="c-detalii"></div>
+  </div>
+
   <footer id="subsol"></footer>
 </main>
 
@@ -102,6 +121,30 @@
 <script>
   const SARE = 'lab-sah-2627';   // aceeași ca în plati_export.py
   const D = window.PLATI;
+
+  // Contul în care se face plata. Secțiunea apare doar dacă IBAN-ul e completat.
+  const CONT = {
+    titular: 'BAITEL IRINA-MIHAELA PERSOANA FIZICA AUT',
+    iban: 'RO85 INGB 0000 9999 1457 1400',
+    banca: 'ING',
+    detalii: 'Numele copilului + luna (ex. Popescu Andrei – septembrie)',
+  };
+
+  if (CONT.iban) {
+    for (const k of ['titular', 'banca', 'detalii']) {
+      document.getElementById('c-' + k).textContent = CONT[k];
+      if (!CONT[k]) document.getElementById('c-' + k).previousElementSibling.hidden = true;
+    }
+    document.getElementById('c-iban').textContent = CONT.iban;
+    document.getElementById('cont').hidden = false;
+    document.getElementById('copiaza').addEventListener('click', async e => {
+      try {
+        await navigator.clipboard.writeText(CONT.iban.replace(/\s/g, ''));
+        e.target.textContent = 'Copiat ✓';
+        setTimeout(() => e.target.textContent = 'Copiază', 2000);
+      } catch (err) {}
+    });
+  }
 
   document.getElementById('subsol').textContent =
     'Date actualizate la ' + D.actualizat + '. Tarif: ' + D.tarif + ' lei / ședință.';
