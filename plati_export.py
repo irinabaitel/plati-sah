@@ -105,6 +105,13 @@ def potriveste(plata, nume_copii, potriviri):
         potrivite = sum(any(la_fel(c, t) for t in text) for c in cuv)
         if potrivite == len(cuv) or potrivite >= 2:
             gasiti.append(nume)
+    if len({normalizeaza(n)[0] for n in gasiti}) > 1:
+        # mai mulți copii se împart o plată doar dacă sunt frați; altfel e un nume comun
+        # („Cojocaru Vlad Mihai” nu e și pentru MIHAI VLAD) -> rămâne cine are numele plătitorului
+        platitor = normalizeaza(plata['platitor'])
+        gasiti = [n for n in gasiti if any(la_fel(normalizeaza(n)[0], t) for t in platitor)]
+        if len({normalizeaza(n)[0] for n in gasiti}) != 1:
+            return [], 'NEGĂSIT (se potrivește cu mai mulți copii)'
     if gasiti:
         return gasiti, 'după nume'
     memorat = potriviri['iban'].get(plata['iban'])
