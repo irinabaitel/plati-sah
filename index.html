@@ -193,8 +193,10 @@
       h += '<div class="ok">Nu aveți nimic de plată. Mulțumim!</div>';
     }
 
-    h += '<div class="linie"><span>Luna ' + D.luni[cur] + ': ' + ședințe(prez) + ' × ' + D.tarif + ' lei</span>' +
-         '<span class="suma">' + lei(s.curent) + '</span></div>';
+    if (prez > 0) {
+      h += '<div class="linie"><span>Luna ' + D.luni[cur] + ': ' + ședințe(prez) + ' × ' + D.tarif + ' lei</span>' +
+           '<span class="suma">' + lei(s.curent) + '</span></div>';
+    }
     if (s.restanta > 0) {
       h += '<div class="linie restanta"><span>Restanță din lunile anterioare</span>' +
            '<span class="suma">' + lei(s.restanta) + '</span></div>';

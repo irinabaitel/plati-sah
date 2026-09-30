@@ -229,6 +229,18 @@ def main():
 
     # luna curentă = ultima lună în care a venit cineva
     curenta = max((i for i in range(len(LUNI)) if any(c[i][0] for c in copii)), default=0)
+    # copiii scutiți de plată (lista e în potriviri.json, privat): pe site apar cu 0 de plată
+    try:
+        with open(POTRIVIRI, encoding='utf-8') as f:
+            scutiti = {' '.join(normalizeaza(n)) for n in json.load(f).get('scutiti', [])}
+    except FileNotFoundError:
+        scutiti = set()
+    for n, luni in zip(nume_copii, copii):
+        if ' '.join(normalizeaza(n)) in scutiti:
+            for l in luni:
+                l[0] = l[1] = 0
+            print('Scutit de plată:', n)
+
     if aplica_incasari(nume_copii, copii, curenta):
         scrie_de_lipit(randuri, copii, PRIMUL_RAND, ultimul)
 
