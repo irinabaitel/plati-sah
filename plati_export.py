@@ -9,7 +9,8 @@ după amprenta SHA-256 a numelui normalizat (fără diacritice, cuvintele în or
 Plățile: se citesc toate exporturile CSV din ING Business puse în __SAH_26-27__\\incasari\\
 („Rapoarte → Extras de cont CSV”; se pot suprapune, dublurile se elimină după „Referinta bancii”).
 Fiecare încasare se potrivește cu copilul după numele din detalii + numele plătitorului;
-suma pentru frați se împarte după cât are fiecare de plată. Când există CSV-uri, „Achitat” pe
+suma pentru frați se împarte după cât are fiecare de plată. O plată din 28 ale lunii până pe 27
+ale lunii următoare e pentru luna în care începe intervalul; întâi acoperă restanțele. Când există CSV-uri, „Achitat” pe
 site vine DOAR din bancă; în Excel coloanele „Achitat” sunt o copie: scriptul scrie
 achitat_de_lipit_<luna>.txt (o valoare pe rând, în ordinea rândurilor din Evidență plăți),
 iar userul o lipește la rândul 7 al coloanei lunii. Nu scriem direct în .xlsx (openpyxl strică
@@ -120,6 +121,13 @@ def potriveste(plata, nume_copii, potriviri):
     return [], 'NEGĂSIT'
 
 
+def luna_platii(data):
+    """Plățile de pe 28 ale lunii până pe 27 ale lunii următoare sunt pentru luna în care începe intervalul."""
+    if data.day < 28:
+        data = data.replace(day=1) - datetime.timedelta(days=1)
+    return LUNA_IDX.get(data.month, 0 if data.month in (7, 8) else 9)
+
+
 def aplica_incasari(nume_copii, copii, curenta):
     if not os.path.isdir(INCASARI) or not glob.glob(os.path.join(INCASARI, '*.csv')):
         return False
@@ -146,14 +154,19 @@ def aplica_incasari(nume_copii, copii, curenta):
             continue
         if cum == 'după nume' and p['iban']:
             potriviri['iban'][p['iban']] = cine      # luna viitoare îl recunoaște și după cont
-        luna = LUNA_IDX.get(p['data'].month, 0 if p['data'].month in (7, 8) else 9)
+        luna = luna_platii(p['data'])
         # frații: suma se împarte după cât are fiecare de plată până acum
         datorii = [sum(l[1] for l in copii[poz[n]][:curenta + 1]) for n in cine]
         baza = sum(datorii) or len(cine)
         parti = [round(p['suma'] * (d if sum(datorii) else 1) / baza) for d in datorii]
         parti[0] += round(p['suma'] - sum(parti), 2)
         for n, s in zip(cine, parti):
-            copii[poz[n]][luna][2] += s
+            luni_copil = copii[poz[n]]
+            for l in luni_copil[:luna]:           # întâi restanțele din lunile dinainte
+                acopera = min(s, max(0, l[1] - l[2]))
+                l[2] += acopera
+                s -= acopera
+            luni_copil[luna][2] += s
         total += p['suma']
         linii.append(f'{antet}\n      -> ' + ', '.join(f'{n} ({s:g} lei)' for n, s in zip(cine, parti)) + f'  [{cum}]')
 
