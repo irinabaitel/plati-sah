@@ -80,7 +80,7 @@ def la_fel(a, b):
 def citeste_incasari():
     """Toate încasările din CSV-urile ING, fără dubluri."""
     vazute, rez = set(), []
-    for f in sorted(glob.glob(os.path.join(INCASARI, '*.csv'))):
+    for f in sorted(glob.glob(os.path.join(INCASARI, 'ING*.csv'))):   # nu facturi_emise.csv
         with open(f, encoding='utf-8-sig', errors='replace') as fh:
             for r in csv.reader(fh, delimiter=';'):
                 if len(r) < 10 or r[0].startswith('numar cont'):
