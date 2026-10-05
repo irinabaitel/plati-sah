@@ -10,7 +10,9 @@ Plățile: se citesc toate exporturile CSV din ING Business puse în __SAH_26-27
 („Rapoarte → Extras de cont CSV”; se pot suprapune, dublurile se elimină după „Referinta bancii”).
 Fiecare încasare se potrivește cu copilul după numele din detalii + numele plătitorului;
 suma pentru frați se împarte după cât are fiecare de plată. O plată din 28 ale lunii până pe 27
-ale lunii următoare e pentru luna în care începe intervalul; întâi acoperă restanțele. Când există CSV-uri, „Achitat” pe
+ale lunii următoare e pentru luna în care începe intervalul; întâi acoperă restanțele.
+Pentru facturare: de_facturat.json = plățile încă nefacturate, câte un rând pe lună acoperită
+(restanțe incluse); facturate.json = referința din bancă -> numărul facturii din SOLO. Când există CSV-uri, „Achitat” pe
 site vine DOAR din bancă; în Excel coloanele „Achitat” sunt o copie: scriptul scrie
 achitat_de_lipit_<luna>.txt (o valoare pe rând, în ordinea rândurilor din Evidență plăți),
 iar userul o lipește la rândul 7 al coloanei lunii. Nu scriem direct în .xlsx (openpyxl strică
@@ -25,6 +27,9 @@ TIPAR = '__SAH 2627__pilot*.xlsx'   # fișierele din „arhiva versiuni vechi”
 INCASARI = os.path.join(FOLDER, 'incasari')
 POTRIVIRI = os.path.join(INCASARI, 'potriviri.json')
 RAPORT = os.path.join(INCASARI, 'raport_potriviri.txt')
+FACTURATE = os.path.join(INCASARI, 'facturate.json')       # plăți deja facturate în SOLO
+DE_FACTURAT = os.path.join(INCASARI, 'de_facturat.json')   # plăți noi, câte un rând pe lună
+AN_SCOLAR = 2026
 # luna calendaristică -> coloana din tabel (sep = 0 ... iun = 9)
 LUNA_IDX = {9: 0, 10: 1, 11: 2, 12: 3, 1: 4, 2: 5, 3: 6, 4: 7, 5: 8, 6: 9}
 DEST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plati_date.js')
@@ -128,9 +133,20 @@ def luna_platii(data):
     return LUNA_IDX.get(data.month, 0 if data.month in (7, 8) else 9)
 
 
-def aplica_incasari(nume_copii, copii, curenta):
+def an_luna(i):
+    """Anul calendaristic al lunii i din anul școlar (sep–dec = primul an)."""
+    return AN_SCOLAR + (i >= 4)
+
+
+def aplica_incasari(nume_copii, copii, curenta, tarif):
     if not os.path.isdir(INCASARI) or not glob.glob(os.path.join(INCASARI, '*.csv')):
         return False
+    try:
+        with open(FACTURATE, encoding='utf-8') as f:
+            facturate = json.load(f)      # referința din bancă -> numărul facturii din SOLO
+    except FileNotFoundError:
+        facturate = {}
+    de_facturat = []
     for luni in copii:           # plățile vin din bancă; ce e în Excel e doar copia lor
         for l in luni:
             l[2] = 0
@@ -160,13 +176,25 @@ def aplica_incasari(nume_copii, copii, curenta):
         baza = sum(datorii) or len(cine)
         parti = [round(p['suma'] * (d if sum(datorii) else 1) / baza) for d in datorii]
         parti[0] += round(p['suma'] - sum(parti), 2)
+        pe_luni = {}                              # luna -> {copil: lei}, pentru factură
         for n, s in zip(cine, parti):
             luni_copil = copii[poz[n]]
-            for l in luni_copil[:luna]:           # întâi restanțele din lunile dinainte
+            for i, l in enumerate(luni_copil[:luna]):   # întâi restanțele din lunile dinainte
                 acopera = min(s, max(0, l[1] - l[2]))
-                l[2] += acopera
-                s -= acopera
+                if acopera:
+                    l[2] += acopera
+                    s -= acopera
+                    pe_luni.setdefault(i, {})[n] = acopera
             luni_copil[luna][2] += s
+            if s:
+                pe_luni.setdefault(luna, {})[n] = pe_luni.get(luna, {}).get(n, 0) + s
+        if p['ref'] not in facturate:
+            de_facturat.append({
+                'ref': p['ref'], 'data': f"{p['data']:%d.%m.%Y}", 'suma': p['suma'],
+                'platitor': p['platitor'], 'detalii': p['detalii'],
+                'linii': [{'luna': f'{LUNI[i]} {an_luna(i)}', 'copii': sorted(c),
+                           'lei': sum(c.values()), 'ore': sum(c.values()) / tarif}
+                          for i, c in sorted(pe_luni.items())]})
         total += p['suma']
         linii.append(f'{antet}\n      -> ' + ', '.join(f'{n} ({s:g} lei)' for n, s in zip(cine, parti)) + f'  [{cum}]')
 
@@ -174,8 +202,16 @@ def aplica_incasari(nume_copii, copii, curenta):
         json.dump(potriviri, f, ensure_ascii=False, indent=1)
     with open(RAPORT, 'w', encoding='utf-8') as f:
         f.write(f'Potrivirea încasărilor — {datetime.datetime.now():%d.%m.%Y %H:%M}\n\n' + '\n'.join(linii) + '\n')
+    with open(DE_FACTURAT, 'w', encoding='utf-8') as f:
+        json.dump(de_facturat, f, ensure_ascii=False, indent=1)
     print('\n'.join(linii))
     print(f'Încasări atribuite: {total:g} lei; negăsite: {negasite}')
+    print(f'De facturat: {len(de_facturat)} plăți ({DE_FACTURAT})')
+    for d in de_facturat:
+        print(f"  {d['data']}  {d['suma']:>7.2f}  {d['platitor']}: " +
+              '; '.join(f"{l['luna']} {l['ore']:g} ore ({', '.join(l['copii'])})" for l in d['linii']))
+        if any(l['ore'] != int(l['ore']) for l in d['linii']):
+            print('      !! ore cu zecimale — de verificat înainte de factură')
     return True
 
 
@@ -254,7 +290,7 @@ def main():
                 l[0] = l[1] = 0
             print('Scutit de plată:', n)
 
-    if aplica_incasari(nume_copii, copii, curenta):
+    if aplica_incasari(nume_copii, copii, curenta, tarif):
         scrie_de_lipit(randuri, copii, PRIMUL_RAND, ultimul)
 
     date = {
