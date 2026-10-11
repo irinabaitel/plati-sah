@@ -171,11 +171,24 @@ def aplica_incasari(nume_copii, copii, curenta, tarif):
         if cum == 'după nume' and p['iban']:
             potriviri['iban'][p['iban']] = cine      # luna viitoare îl recunoaște și după cont
         luna = luna_platii(p['data'])
-        # frații: suma se împarte după cât are fiecare de plată până acum
-        datorii = [sum(l[1] for l in copii[poz[n]][:curenta + 1]) for n in cine]
-        baza = sum(datorii) or len(cine)
-        parti = [round(p['suma'] * (d if sum(datorii) else 1) / baza) for d in datorii]
-        parti[0] += round(p['suma'] - sum(parti), 2)
+        # frații: suma se împarte pe ședințe întregi (câte un tarif), întâi pe ce are
+        # fiecare de plată în luna cea mai veche neachitată; ce e în plus, pe rând
+        rest = {n: [max(0, l[1] - l[2]) for l in copii[poz[n]][:curenta + 1]] for n in cine}
+        pe_copil = dict.fromkeys(cine, 0)
+        sedinte = int(p['suma'] // tarif)
+        for _ in range(sedinte):
+            datori = [(next(i for i, v in enumerate(rest[n]) if v > 0), n)
+                      for n in cine if any(rest[n])]
+            if datori:
+                veche = min(i for i, _ in datori)
+                n = max((n for i, n in datori if i == veche),
+                        key=lambda n: (rest[n][veche], -cine.index(n)))
+                rest[n][veche] = max(0, rest[n][veche] - tarif)
+            else:
+                n = min(cine, key=lambda n: (pe_copil[n], cine.index(n)))
+            pe_copil[n] += tarif
+        pe_copil[cine[0]] += round(p['suma'] - sedinte * tarif, 2)
+        parti = [pe_copil[n] for n in cine]
         pe_luni = {}                              # luna -> {copil: lei}, pentru factură
         for n, s in zip(cine, parti):
             luni_copil = copii[poz[n]]
