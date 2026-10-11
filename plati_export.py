@@ -185,9 +185,15 @@ def aplica_incasari(nume_copii, copii, curenta, tarif):
                     l[2] += acopera
                     s -= acopera
                     pe_luni.setdefault(i, {})[n] = acopera
-            luni_copil[luna][2] += s
-            if s:
-                pe_luni.setdefault(luna, {})[n] = pe_luni.get(luna, {}).get(n, 0) + s
+            # apoi luna plății; ce e în plus trece pe lunile următoare, până la luna curentă
+            ultima = max(luna, curenta)
+            for i in range(luna, ultima + 1):
+                l = luni_copil[i]
+                acopera = s if i == ultima else min(s, max(0, l[1] - l[2]))
+                if acopera:
+                    l[2] += acopera
+                    s -= acopera
+                    pe_luni.setdefault(i, {})[n] = pe_luni.get(i, {}).get(n, 0) + acopera
         if p['ref'] not in facturate:
             de_facturat.append({
                 'ref': p['ref'], 'data': f"{p['data']:%d.%m.%Y}", 'suma': p['suma'],
